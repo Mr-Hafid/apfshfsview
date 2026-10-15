@@ -1,0 +1,181 @@
+import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../bridge/reader_api.g.dart';
+import '../../bridge/reader_repository.dart';
+import '../../shared/error_messages.dart';
+import '../../shared/format_bytes.dart';
+import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/thin_progress_bar.dart';
+import '../../shared/widgets/toast_banner.dart';
+import '../browser/browser_location.dart';
+import '../browser/browser_screen.dart';
+
+String volumeSubtitle(VolumeMessage volume) {
+  if (volume.isEncrypted) return 'Terenkripsi — tidak didukung';
+  final failureCode = volume.failureCode;
+  if (volume.volumeHandle == null && failureCode != null) return describeErrorCode(failureCode);
+  final role = volume.role == null ? '' : ' · ${volume.role}';
+  return '${volume.format}$role · ${formatBytes(volume.usedBytes)} dari ${formatBytes(volume.totalBytes)}';
+}
+
+class VolumesScreen extends ConsumerStatefulWidget {
+  const VolumesScreen({super.key, required this.device});
+
+  final UsbDeviceMessage device;
+
+  @override
+  ConsumerState<VolumesScreen> createState() => _VolumesScreenState();
+}
+
+class _VolumesScreenState extends ConsumerState<VolumesScreen> {
+  late final ReaderRepository _repository;
+  late final Future<DeviceOpenResult> _openFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _repository = ref.read(readerRepositoryProvider);
+    _openFuture = _repository.openDevice(widget.device.deviceId);
+  }
+
+  @override
+  void dispose() {
+    _repository.closeDevice(widget.device.deviceId);
+    super.dispose();
+  }
+
+  Future<void> _openVolume(VolumeMessage volume) async {
+    final handle = volume.volumeHandle;
+    if (handle == null) return;
+    if (volume.isUncleanlyUnmounted) {
+      final proceed = await showCupertinoDialog<bool>(
+        context: context,
+        builder: (dialogContext) => CupertinoAlertDialog(
+          title: const Text('Volume tidak di-eject dengan benar'),
+          content: const Text('Isi volume mungkin tidak konsisten. Tetap buka?'),
+          actions: [
+            CupertinoDialogAction(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Batal')),
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Buka'),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true) return;
+    }
+    try {
+      final rootId = await _repository.rootNodeId(handle);
+      if (!mounted) return;
+      Navigator.of(context).push(
+        browserRoute(
+          BrowserLocation(
+            volume: VolumeContext(handle: handle, name: volume.name, format: volume.format),
+            nodeId: rootId,
+            title: volume.name,
+            trail: [PathSegment(rootId, volume.name)],
+            previousTitle: widget.device.productName,
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) ToastBanner.show(context, describeReaderError(error));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoPageScaffold(
+      backgroundColor: CupertinoColors.systemGroupedBackground,
+      child: CustomScrollView(
+        slivers: [
+          CupertinoSliverNavigationBar(largeTitle: Text(widget.device.productName), previousPageTitle: 'Lokasi'),
+          FutureBuilder<DeviceOpenResult>(
+            future: _openFuture,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: EmptyState(
+                    icon: CupertinoIcons.exclamationmark_triangle,
+                    title: 'SSD tidak bisa dibuka',
+                    subtitle: describeReaderError(snapshot.error!),
+                  ),
+                );
+              }
+              final result = snapshot.data;
+              if (result == null) {
+                return const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(child: CupertinoActivityIndicator()),
+                );
+              }
+              if (result.volumes.isEmpty) {
+                return SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: EmptyState(
+                    icon: CupertinoIcons.question_circle,
+                    title: 'Format tidak didukung',
+                    subtitle: result.unrecognizedPartitionTypes.isEmpty
+                        ? 'Tidak ada partisi APFS atau HFS+.'
+                        : 'Partisi yang ditemukan:\n${result.unrecognizedPartitionTypes.join('\n')}',
+                  ),
+                );
+              }
+              return SliverToBoxAdapter(
+                child: CupertinoListSection.insetGrouped(
+                  header: Text('Volume · ${formatBytes(result.capacityBytes)}'),
+                  children: [for (final volume in result.volumes) _VolumeTile(volume: volume, onTap: _openVolume)],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VolumeTile extends StatelessWidget {
+  const _VolumeTile({required this.volume, required this.onTap});
+
+  final VolumeMessage volume;
+  final ValueChanged<VolumeMessage> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isOpenable = volume.volumeHandle != null;
+    final fraction = volume.totalBytes > 0 ? volume.usedBytes / volume.totalBytes : 0.0;
+    final Widget? trailing = volume.isUncleanlyUnmounted
+        ? Icon(CupertinoIcons.exclamationmark_triangle_fill, color: CupertinoColors.systemOrange.resolveFrom(context))
+        : isOpenable
+            ? const CupertinoListTileChevron()
+            : null;
+    return Opacity(
+      opacity: isOpenable ? 1 : 0.45,
+      child: CupertinoListTile(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        leading: Icon(
+          volume.isEncrypted ? CupertinoIcons.lock_fill : CupertinoIcons.folder_fill,
+          color: isOpenable ? CupertinoTheme.of(context).primaryColor : CupertinoColors.systemGrey.resolveFrom(context),
+        ),
+        title: Text(volume.name),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(volumeSubtitle(volume)),
+            if (isOpenable) ...[
+              const SizedBox(height: 6),
+              ThinProgressBar(fraction: fraction),
+            ],
+          ],
+        ),
+        trailing: trailing,
+        onTap: isOpenable ? () => onTap(volume) : null,
+      ),
+    );
+  }
+}
