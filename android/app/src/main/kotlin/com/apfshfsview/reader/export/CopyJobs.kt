@@ -40,6 +40,7 @@ data class CopyProgress(
 
 object CopyJobs {
     private val queue = ArrayDeque<CopyJob>()
+    private val activeJobs = HashMap<Long, CopyJob>()
     private val cancelledJobIds = HashSet<Long>()
     private val listeners = CopyOnWriteArrayList<(CopyProgress) -> Unit>()
     private var nextJobId = 1L
@@ -53,7 +54,19 @@ object CopyJobs {
     }
 
     @Synchronized
-    fun next(): CopyJob? = queue.removeFirstOrNull()
+    fun next(): CopyJob? = queue.removeFirstOrNull()?.also { activeJobs[it.jobId] = it }
+
+    @Synchronized
+    fun finish(jobId: Long) {
+        activeJobs.remove(jobId)
+    }
+
+    fun cancelForVolumes(volumeHandles: Set<Long>) {
+        val jobIds = synchronized(this) {
+            (queue + activeJobs.values).filter { it.volumeHandle in volumeHandles }.map { it.jobId }
+        }
+        jobIds.forEach(::cancel)
+    }
 
     @Synchronized
     fun hasPending(): Boolean = queue.isNotEmpty()

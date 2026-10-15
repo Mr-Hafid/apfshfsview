@@ -57,7 +57,9 @@ class ReaderHostApiImpl(
     }
 
     private fun closeDeviceSessions(deviceId: Int) {
-        players.disposeForVolumes(ReaderSessions.volumeHandlesOf(deviceId))
+        val volumeHandles = ReaderSessions.volumeHandlesOf(deviceId)
+        CopyJobs.cancelForVolumes(volumeHandles)
+        players.disposeForVolumes(volumeHandles)
         ReaderSessions.closeDevice(deviceId)
         previewCache.clear()
     }

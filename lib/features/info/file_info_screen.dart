@@ -4,8 +4,10 @@ import '../../bridge/reader_api.g.dart';
 import '../../shared/file_type_resolver.dart';
 import '../../shared/format_bytes.dart';
 import '../../shared/format_date.dart';
+import '../../shared/readable_width.dart';
 import '../../shared/widgets/entry_thumbnail.dart';
 import '../browser/browser_location.dart';
+import '../browser/entry_subtitle.dart';
 
 Route<void> fileInfoRoute({required VolumeContext volume, required FileEntryMessage entry, required String path}) =>
     CupertinoPageRoute<void>(
@@ -26,8 +28,8 @@ class FileInfoScreen extends StatelessWidget {
     final compression = !entry.isCompressed
         ? 'Tidak'
         : entry.isReadable
-            ? 'Ya'
-            : 'Ya — tidak didukung';
+        ? 'Ya'
+        : 'Ya — tidak didukung';
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,
       navigationBar: CupertinoNavigationBar(
@@ -40,12 +42,13 @@ class FileInfoScreen extends StatelessWidget {
       ),
       child: SafeArea(
         child: ListView(
+          padding: readableInsets(context),
           children: [
             const SizedBox(height: 24),
             Center(
               child: SizedBox.square(
                 dimension: 96,
-                child: EntryThumbnail(volumeHandle: volume.handle, entry: entry, iconSize: 72),
+                child: EntryThumbnail(volumeHandle: volume.handle, entry: entry),
               ),
             ),
             const SizedBox(height: 12),
@@ -63,7 +66,7 @@ class FileInfoScreen extends StatelessWidget {
                 _InfoRow(
                   label: isFolder ? 'Isi' : 'Ukuran',
                   value: isFolder
-                      ? '${entry.childCount} item'
+                      ? folderContentLabel(entry)
                       : '${formatBytes(entry.size)} (${formatByteCount(entry.size)} byte)',
                 ),
                 _InfoRow(label: 'Dibuat', value: formatDateTime(entry.createdAtMillis)),

@@ -9,24 +9,29 @@ import 'package:reader/features/volumes/volumes_screen.dart';
 import '../support/fake_reader_repository.dart';
 
 Widget wrap(FakeReaderRepository repository, Widget child) => ProviderScope(
-      overrides: [readerRepositoryProvider.overrideWithValue(repository)],
-      child: CupertinoApp(home: child),
-    );
+  overrides: [readerRepositoryProvider.overrideWithValue(repository)],
+  child: CupertinoApp(home: child),
+);
 
 VolumeMessage volume({int? handle, required String name, bool encrypted = false, String? failureCode}) => VolumeMessage(
-      volumeHandle: handle,
-      name: name,
-      format: 'APFS',
-      role: 'Data',
-      usedBytes: 120000000000,
-      totalBytes: 500000000000,
-      isEncrypted: encrypted,
-      isUncleanlyUnmounted: false,
-      failureCode: failureCode,
-    );
+  volumeHandle: handle,
+  name: name,
+  format: 'APFS',
+  role: 'Data',
+  usedBytes: 120000000000,
+  totalBytes: 500000000000,
+  isEncrypted: encrypted,
+  isUncleanlyUnmounted: false,
+  failureCode: failureCode,
+);
 
 void main() {
-  final device = UsbDeviceMessage(deviceId: 7, productName: 'T7 Shield', manufacturerName: 'Samsung', hasPermission: true);
+  final device = UsbDeviceMessage(
+    deviceId: 7,
+    productName: 'T7 Shield',
+    manufacturerName: 'Samsung',
+    hasPermission: true,
+  );
 
   testWidgets('empty device list asks to plug in the SSD', (tester) async {
     await tester.pumpWidget(wrap(FakeReaderRepository(), const DevicesScreen()));
@@ -35,9 +40,11 @@ void main() {
   });
 
   testWidgets('device without permission shows grant button', (tester) async {
-    final repository = FakeReaderRepository(devices: [
-      UsbDeviceMessage(deviceId: 7, productName: 'T7 Shield', manufacturerName: 'Samsung', hasPermission: false),
-    ]);
+    final repository = FakeReaderRepository(
+      devices: [
+        UsbDeviceMessage(deviceId: 7, productName: 'T7 Shield', manufacturerName: 'Samsung', hasPermission: false),
+      ],
+    );
     await tester.pumpWidget(wrap(repository, const DevicesScreen()));
     await tester.pumpAndSettle();
     expect(find.text('T7 Shield'), findsOneWidget);
@@ -63,11 +70,39 @@ void main() {
 
   testWidgets('device without known partitions explains the format', (tester) async {
     final repository = FakeReaderRepository(
-      openResult: DeviceOpenResult(capacityBytes: 1, volumes: const [], unrecognizedPartitionTypes: const ['EBD0A0A2-B9E5-4433-87C0-68B6B72699C7']),
+      openResult: DeviceOpenResult(
+        capacityBytes: 1,
+        volumes: const [],
+        unrecognizedPartitionTypes: const ['EBD0A0A2-B9E5-4433-87C0-68B6B72699C7'],
+      ),
     );
     await tester.pumpWidget(wrap(repository, VolumesScreen(device: device)));
     await tester.pumpAndSettle();
     expect(find.text('Format tidak didukung'), findsOneWidget);
     expect(find.textContaining('EBD0A0A2'), findsOneWidget);
+  });
+
+  testWidgets('eject closes the device and returns to the location list', (tester) async {
+    final repository = FakeReaderRepository(
+      devices: [device],
+      openResult: DeviceOpenResult(
+        capacityBytes: 500000000000,
+        volumes: [volume(handle: 1, name: 'Data')],
+        unrecognizedPartitionTypes: const [],
+      ),
+    );
+    await tester.pumpWidget(wrap(repository, const DevicesScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('T7 Shield'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Eject'));
+    await tester.pumpAndSettle();
+    expect(find.text('Eject T7 Shield?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(CupertinoDialogAction, 'Eject'));
+    await tester.pumpAndSettle();
+    expect(repository.closedDevices, [7]);
+    expect(find.text('SSD sudah di-eject, aman dicabut'), findsOneWidget);
+    expect(find.text('Lokasi'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
   });
 }

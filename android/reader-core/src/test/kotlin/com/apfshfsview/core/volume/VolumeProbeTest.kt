@@ -44,4 +44,34 @@ class VolumeProbeTest {
         assertTrue(result.volumes.isEmpty())
         assertEquals(1, result.unrecognizedPartitionTypes.size)
     }
+
+    @Test
+    fun `mbr with a logical ntfs partition is named instead of shown as a raw type`() {
+        val image = ByteArray(8 * 1024 * 1024)
+        fun putEntry(sectorOffset: Int, index: Int, type: Int, firstSector: Long, sectorCount: Long) {
+            val entry = sectorOffset + 446 + index * 16
+            image[entry + 4] = type.toByte()
+            for (byte in 0 until 4) {
+                image[entry + 8 + byte] = (firstSector ushr (8 * byte)).toByte()
+                image[entry + 12 + byte] = (sectorCount ushr (8 * byte)).toByte()
+            }
+        }
+        fun signSector(sectorOffset: Int) {
+            image[sectorOffset + 510] = 0x55
+            image[sectorOffset + 511] = 0xAA.toByte()
+        }
+        putEntry(0, 0, 0x0F, 2048, 12000)
+        signSector(0)
+        val extendedOffset = 2048 * 512
+        putEntry(extendedOffset, 0, 0x07, 2048, 8000)
+        signSector(extendedOffset)
+        val logicalOffset = extendedOffset + 2048 * 512
+        "NTFS    ".toByteArray().copyInto(image, logicalOffset + 3)
+        image[logicalOffset] = 0xEB.toByte()
+        signSector(logicalOffset)
+
+        val result = VolumeProbe.probe(MemoryBlockDevice(image))
+        assertTrue(result.volumes.isEmpty())
+        assertEquals(listOf("NTFS — belum didukung"), result.unrecognizedPartitionTypes)
+    }
 }

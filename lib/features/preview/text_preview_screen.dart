@@ -25,7 +25,7 @@ class TextPreviewScreen extends ConsumerStatefulWidget {
 
 class _TextDocument {
   _TextDocument(this.lines, {required this.isTruncated})
-      : longestLineLength = lines.fold<int>(0, (longest, line) => max(longest, line.length));
+    : longestLineLength = lines.fold<int>(0, (longest, line) => max(longest, line.length));
 
   final List<String> lines;
   final bool isTruncated;
@@ -48,7 +48,11 @@ class _TextPreviewScreenState extends ConsumerState<TextPreviewScreen> {
 
   Future<_TextDocument> _load(ReaderRepository repository) async {
     final isTruncated = widget.entry.size > _maxPreviewBytes;
-    final bytes = await repository.readPrefix(widget.volume.handle, widget.entry.nodeId, min(widget.entry.size, _maxPreviewBytes));
+    final bytes = await repository.readPrefix(
+      widget.volume.handle,
+      widget.entry.nodeId,
+      min(widget.entry.size, _maxPreviewBytes),
+    );
     final text = decodePreviewText(bytes, isTruncated: isTruncated);
     return _TextDocument(const LineSplitter().convert(text), isTruncated: isTruncated);
   }
@@ -107,7 +111,11 @@ class _TextPreviewScreenState extends ConsumerState<TextPreviewScreen> {
         children: [
           SizedBox(
             width: gutterWidth,
-            child: Text('${index + 1}', textAlign: TextAlign.right, style: codeStyle.copyWith(color: secondary)),
+            child: Text(
+              '${index + 1}',
+              textAlign: TextAlign.right,
+              style: codeStyle.copyWith(color: secondary),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(

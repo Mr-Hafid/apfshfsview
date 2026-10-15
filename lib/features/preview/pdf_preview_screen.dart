@@ -109,10 +109,7 @@ class _PdfPreviewScreenState extends ConsumerState<PdfPreviewScreen> {
         options: const DefaultBuilderOptions(),
         documentLoaderBuilder: (_) => const Center(child: CupertinoActivityIndicator()),
         pageLoaderBuilder: (_) => const Center(child: CupertinoActivityIndicator()),
-        errorBuilder: (_, _) => const EmptyState(
-          icon: CupertinoIcons.doc_richtext,
-          title: 'PDF tidak bisa dibuka',
-        ),
+        errorBuilder: (_, _) => const EmptyState(icon: CupertinoIcons.doc_richtext, title: 'PDF tidak bisa dibuka'),
       ),
     );
   }

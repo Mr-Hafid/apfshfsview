@@ -5,7 +5,10 @@ class ToastBanner {
 
   static void show(BuildContext context, String message) {
     final overlay = Overlay.maybeOf(context, rootOverlay: true);
-    if (overlay == null) return;
+    if (overlay != null) showOn(overlay, message);
+  }
+
+  static void showOn(OverlayState overlay, String message) {
     final entry = OverlayEntry(builder: (_) => _ToastCapsule(message: message));
     overlay.insert(entry);
     Future<void>.delayed(_visibleDuration, () {

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../bridge/reader_api.g.dart';
 import '../../bridge/reader_repository.dart';
 import '../../shared/error_messages.dart';
+import '../../shared/readable_width.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/toast_banner.dart';
 import '../volumes/volumes_screen.dart';
@@ -63,9 +64,7 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
   }
 
   void _open(UsbDeviceMessage device) {
-    Navigator.of(context).push(
-      CupertinoPageRoute<void>(title: device.productName, builder: (_) => VolumesScreen(device: device)),
-    );
+    Navigator.of(context).push(volumesRoute(device));
   }
 
   @override
@@ -107,23 +106,26 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
         ),
       );
     }
-    return SliverList.list(
-      children: [
-        CupertinoListSection.insetGrouped(
-          header: const Text('Perangkat'),
-          children: [for (final device in devices) _buildDeviceTile(device)],
-        ),
-        CupertinoListSection.insetGrouped(
-          header: const Text('Privasi'),
-          children: [
-            CupertinoListTile(
-              leading: Icon(CupertinoIcons.lock_shield, color: CupertinoColors.systemGreen.resolveFrom(context)),
-              title: const Text('Offline · Read-only'),
-              subtitle: const Text('Tidak ada data yang dikirim atau ditulis ke SSD'),
-            ),
-          ],
-        ),
-      ],
+    return SliverPadding(
+      padding: readableInsets(context),
+      sliver: SliverList.list(
+        children: [
+          CupertinoListSection.insetGrouped(
+            header: const Text('Perangkat'),
+            children: [for (final device in devices) _buildDeviceTile(device)],
+          ),
+          CupertinoListSection.insetGrouped(
+            header: const Text('Privasi'),
+            children: [
+              CupertinoListTile(
+                leading: Icon(CupertinoIcons.lock_shield, color: CupertinoColors.systemGreen.resolveFrom(context)),
+                title: const Text('Offline · Read-only'),
+                subtitle: const Text('Tidak ada data yang dikirim atau ditulis ke SSD'),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

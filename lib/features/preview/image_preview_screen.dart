@@ -98,7 +98,9 @@ class _ImagePageState extends ConsumerState<_ImagePage> {
   void initState() {
     super.initState();
     if (widget.entry.size <= _maxImageBytes) {
-      _bytesFuture = ref.read(readerRepositoryProvider).readPrefix(widget.volumeHandle, widget.entry.nodeId, widget.entry.size);
+      _bytesFuture = ref
+          .read(readerRepositoryProvider)
+          .readPrefix(widget.volumeHandle, widget.entry.nodeId, widget.entry.size);
     }
   }
 
@@ -135,9 +137,13 @@ class _ImageMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Text(text, textAlign: TextAlign.center, style: const TextStyle(color: CupertinoColors.systemGrey)),
-        ),
-      );
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: CupertinoColors.systemGrey),
+      ),
+    ),
+  );
 }

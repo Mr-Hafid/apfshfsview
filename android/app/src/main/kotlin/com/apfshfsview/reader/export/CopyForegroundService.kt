@@ -51,6 +51,7 @@ class CopyForegroundService : Service() {
                 return
             }
             val result = withContext(Dispatchers.IO) { runJob(job) }
+            CopyJobs.finish(job.jobId)
             CopyJobs.publish(result)
             updateNotification(result)
         }

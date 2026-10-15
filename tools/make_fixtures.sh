@@ -34,8 +34,8 @@ fragment_large_file() {
 }
 
 populate_volume() {
-  local root="$1/data" index compressible="$1/compressible_source.txt"
-  mkdir -p "$root/nested/level2/level3" "$root/unicode" "$root/links" "$root/many" "$root/filler" "$root/empty_folder"
+  local root="$1/data" content_profile="$2" index compressible="$1/compressible_source.txt"
+  mkdir -p "$root/nested/level2/level3" "$root/unicode" "$root/many" "$root/filler" "$root/empty_folder"
   printf 'hello apfs hfs reader\n' > "$root/hello.txt"
   : > "$root/zero_bytes.bin"
   printf 'deep file\n' > "$root/nested/level2/level3/deep.txt"
@@ -43,16 +43,21 @@ populate_volume() {
   printf 'ramen\n' > "$root/unicode/🍜 ramen.txt"
   printf 'mixed case\n' > "$root/MixedCase.TXT"
   dd if=/dev/urandom of="$root/random_1mb.bin" bs=1024 count=1024 2>/dev/null
-  ln "$root/hello.txt" "$root/links/hardlink_to_hello.txt"
-  ln -s ../hello.txt "$root/links/symlink_to_hello.txt"
+  if [ "$content_profile" = "apple" ]; then
+    mkdir -p "$root/links"
+    ln "$root/hello.txt" "$root/links/hardlink_to_hello.txt"
+    ln -s ../hello.txt "$root/links/symlink_to_hello.txt"
+  fi
   for index in $(seq 1 1200); do
     printf 'item %d\n' "$index" > "$root/many/item_$(printf '%04d' "$index").txt"
   done
-  for index in $(seq 1 4000); do
-    printf 'line %d of a very compressible text file\n' "$index"
-  done > "$compressible"
-  ditto --hfsCompression "$compressible" "$root/compressed_by_ditto.txt"
-  rm "$compressible"
+  if [ "$content_profile" = "apple" ]; then
+    for index in $(seq 1 4000); do
+      printf 'line %d of a very compressible text file\n' "$index"
+    done > "$compressible"
+    ditto --hfsCompression "$compressible" "$root/compressed_by_ditto.txt"
+    rm "$compressible"
+  fi
   fragment_large_file "$root"
 }
 
@@ -77,11 +82,11 @@ write_manifest() {
 }
 
 create_fixture() {
-  local name="$1" filesystem="$2" image="$FIXTURES_DIR/$1.dmg"
+  local name="$1" filesystem="$2" layout="${3:-GPTSPUD}" content_profile="${4:-apple}" image="$FIXTURES_DIR/$1.dmg"
   rm -f "$image"
-  hdiutil create -size "$IMAGE_SIZE" -fs "$filesystem" -layout GPTSPUD -volname "$VOLUME_NAME" "$image" >/dev/null
+  hdiutil create -size "$IMAGE_SIZE" -fs "$filesystem" -layout "$layout" -volname "$VOLUME_NAME" "$image" >/dev/null
   attach_image "$image"
-  populate_volume "$MOUNT_POINT"
+  populate_volume "$MOUNT_POINT" "$content_profile"
   write_manifest "$MOUNT_POINT" "$FIXTURES_DIR/$name.tsv"
   detach_image
   echo "created $image"
@@ -103,12 +108,29 @@ create_encrypted_fixture() {
   echo "created $image"
 }
 
+create_portable_fixtures() {
+  create_fixture fat32_mbr "MS-DOS FAT32" MBRSPUD portable
+  create_fixture fat32_superfloppy "MS-DOS FAT32" NONE portable
+  create_fixture fat16_mbr "MS-DOS FAT16" MBRSPUD portable
+  create_fixture exfat_mbr "ExFAT" MBRSPUD portable
+  create_fixture exfat_gpt "ExFAT" GPTSPUD portable
+}
+
 mkdir -p "$FIXTURES_DIR"
-if [ "${1:-all}" != "encrypted" ]; then
-  create_fixture hfsplus "HFS+"
-  create_fixture hfsx "HFSX"
-  create_fixture apfs "APFS"
-  create_fixture apfs_case_sensitive "Case-sensitive APFS"
-fi
-create_encrypted_fixture
+case "${1:-all}" in
+  encrypted)
+    create_encrypted_fixture
+    ;;
+  portable)
+    create_portable_fixtures
+    ;;
+  *)
+    create_fixture hfsplus "HFS+"
+    create_fixture hfsx "HFSX"
+    create_fixture apfs "APFS"
+    create_fixture apfs_case_sensitive "Case-sensitive APFS"
+    create_encrypted_fixture
+    create_portable_fixtures
+    ;;
+esac
 rm -f "$ATTACH_LOG"

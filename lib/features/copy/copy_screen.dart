@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../bridge/reader_api.g.dart';
 import '../../bridge/reader_repository.dart';
 import '../../shared/format_bytes.dart';
+import '../../shared/readable_width.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/thin_progress_bar.dart';
 import 'copy_jobs.dart';
@@ -31,17 +32,23 @@ class CopyScreen extends ConsumerWidget {
               ),
             ),
           if (running.isNotEmpty)
-            SliverToBoxAdapter(
-              child: CupertinoListSection.insetGrouped(
-                header: const Text('Sedang berjalan'),
-                children: [for (final job in running) _RunningJobTile(job: job)],
+            SliverPadding(
+              padding: readableInsets(context),
+              sliver: SliverToBoxAdapter(
+                child: CupertinoListSection.insetGrouped(
+                  header: const Text('Sedang berjalan'),
+                  children: [for (final job in running) _RunningJobTile(job: job)],
+                ),
               ),
             ),
           if (finished.isNotEmpty)
-            SliverToBoxAdapter(
-              child: CupertinoListSection.insetGrouped(
-                header: const Text('Selesai'),
-                children: [for (final job in finished) _FinishedJobTile(job: job)],
+            SliverPadding(
+              padding: readableInsets(context),
+              sliver: SliverToBoxAdapter(
+                child: CupertinoListSection.insetGrouped(
+                  header: const Text('Selesai'),
+                  children: [for (final job in finished) _FinishedJobTile(job: job)],
+                ),
               ),
             ),
         ],
@@ -103,7 +110,10 @@ class _RunningJobTile extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Padding(padding: const EdgeInsets.only(right: 8), child: ThinProgressBar(fraction: fraction)),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ThinProgressBar(fraction: fraction),
+          ),
           const SizedBox(height: 6),
           Text(
             '${job.copiedFiles} dari ${job.totalFiles} file · ${formatBytes(job.copiedBytes)} dari ${formatBytes(job.totalBytes)} · ${formatBytes(job.bytesPerSecond)}/s',

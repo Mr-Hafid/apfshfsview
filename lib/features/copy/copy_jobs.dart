@@ -16,8 +16,7 @@ class CopyJobsNotifier extends Notifier<Map<int, CopyProgressMessage>> {
   }
 }
 
-final copyJobsProvider =
-    NotifierProvider<CopyJobsNotifier, Map<int, CopyProgressMessage>>(CopyJobsNotifier.new);
+final copyJobsProvider = NotifierProvider<CopyJobsNotifier, Map<int, CopyProgressMessage>>(CopyJobsNotifier.new);
 
 final activeCopyCountProvider = Provider<int>(
   (ref) => ref.watch(copyJobsProvider).values.where((job) => activeCopyStates.contains(job.state)).length,

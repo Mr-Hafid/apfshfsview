@@ -6,6 +6,11 @@ enum class VolumeFormat(val label: String) {
     HFS_PLUS("HFS+"),
     HFSX("HFSX"),
     APFS("APFS"),
+    FAT12("FAT12"),
+    FAT16("FAT16"),
+    FAT32("FAT32"),
+    EXFAT("exFAT"),
+    UNKNOWN("Tidak diketahui"),
 }
 
 data class FileNode(

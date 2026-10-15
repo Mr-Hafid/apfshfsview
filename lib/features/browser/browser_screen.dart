@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../bridge/reader_api.g.dart';
@@ -7,6 +8,7 @@ import '../../shared/error_messages.dart';
 import '../../shared/file_type_resolver.dart';
 import '../../shared/hidden_files.dart';
 import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/toast_banner.dart';
 import '../copy/copy_flow.dart';
 import '../info/file_info_screen.dart';
 import '../player/video_player_screen.dart';
@@ -15,342 +17,493 @@ import '../preview/pdf_preview_screen.dart';
 import '../preview/text_preview_screen.dart';
 import 'browser_location.dart';
 import 'browser_preferences.dart';
-import 'entry_grid_tile.dart';
-import 'entry_list_tile.dart';
+import 'entry_actions_sheet.dart';
 import 'entry_sorting.dart';
-import 'path_bar.dart';
-import 'selection_toolbar.dart';
+import 'finder_bottom_bar.dart';
+import 'finder_icon_tile.dart';
+import 'finder_list_row.dart';
+import 'finder_palette.dart';
+import 'finder_sidebar.dart';
+import 'finder_toolbar.dart';
 
-Route<void> browserRoute(BrowserLocation location) => CupertinoPageRoute<void>(
-      settings: RouteSettings(name: browserRouteName(location.nodeId)),
-      title: location.title,
-      builder: (_) => BrowserScreen(location: location),
+Route<void> browserRoute({required VolumeContext volume, required int rootNodeId, BrowserSidebarContext? sidebar}) =>
+    CupertinoPageRoute<void>(
+      title: volume.name,
+      builder: (_) => BrowserScreen(volume: volume, rootNodeId: rootNodeId, sidebar: sidebar),
     );
 
 class BrowserScreen extends ConsumerStatefulWidget {
-  const BrowserScreen({super.key, required this.location});
+  const BrowserScreen({super.key, required this.volume, required this.rootNodeId, this.sidebar});
 
-  final BrowserLocation location;
+  final VolumeContext volume;
+  final int rootNodeId;
+  final BrowserSidebarContext? sidebar;
 
   @override
   ConsumerState<BrowserScreen> createState() => _BrowserScreenState();
 }
 
-class _BrowserScreenState extends ConsumerState<BrowserScreen> {
-  late final Future<List<FileEntryMessage>> _entriesFuture;
-  final Set<int> _selectedIds = {};
-  bool _isSelecting = false;
+class _ListRowModel {
+  const _ListRowModel({required this.entry, required this.depth, required this.trail, required this.siblings});
 
-  BrowserLocation get _location => widget.location;
+  final FileEntryMessage entry;
+  final int depth;
+  final List<PathSegment> trail;
+  final List<FileEntryMessage> siblings;
+}
+
+class _BrowserScreenState extends ConsumerState<BrowserScreen> {
+  static const _sidebarMinWidth = 900.0;
+  static const _labeledToolbarMinWidth = 700.0;
+  static const _columnsMinWidth = 640.0;
+  static const _iconTileMaxWidth = 112.0;
+
+  late final ReaderRepository _repository;
+  late List<PathSegment> _trail;
+  final List<List<PathSegment>> _forwardHistory = [];
+  final Map<int, List<FileEntryMessage>> _listings = {};
+  final Map<int, Object> _listingErrors = {};
+  final Set<int> _loadingFolderIds = {};
+  final Set<int> _expandedFolderIds = {};
+  final Map<int, _ListRowModel> _selected = {};
+  bool _isSelecting = false;
+  int _transitionDirection = 0;
+  Key? _contentKey;
+
+  PathSegment get _current => _trail.last;
 
   @override
   void initState() {
     super.initState();
-    _entriesFuture = ref.read(readerRepositoryProvider).listDirectory(_location.volume.handle, _location.nodeId);
+    _repository = ref.read(readerRepositoryProvider);
+    _trail = [PathSegment(widget.rootNodeId, widget.volume.name)];
+    _ensureLoaded(widget.rootNodeId);
+  }
+
+  void _ensureLoaded(int folderId) {
+    if (_listings.containsKey(folderId) || _loadingFolderIds.contains(folderId)) return;
+    _loadingFolderIds.add(folderId);
+    _listingErrors.remove(folderId);
+    _repository
+        .listDirectory(widget.volume.handle, folderId)
+        .then(
+          (entries) {
+            if (!mounted) return;
+            setState(() {
+              _loadingFolderIds.remove(folderId);
+              _listings[folderId] = entries;
+            });
+          },
+          onError: (Object error) {
+            if (!mounted) return;
+            setState(() {
+              _loadingFolderIds.remove(folderId);
+              _listingErrors[folderId] = error;
+            });
+          },
+        );
+  }
+
+  List<FileEntryMessage> _visibleEntries(int folderId, BrowserPreferences preferences) {
+    final entries = _listings[folderId];
+    if (entries == null) return const [];
+    return sortEntries(
+      entries.where((entry) => preferences.showHidden || !isHiddenName(entry.name)),
+      preferences.sortField,
+      preferences.ascending,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final preferences = ref.watch(browserPreferencesProvider);
-    return CupertinoPageScaffold(
-      child: FutureBuilder<List<FileEntryMessage>>(
-        future: _entriesFuture,
-        builder: (context, snapshot) {
-          final entries = snapshot.data;
-          final visibleEntries = entries == null
-              ? const <FileEntryMessage>[]
-              : sortEntries(
-                  entries.where((entry) => preferences.showHidden || !isHiddenName(entry.name)),
-                  preferences.sortField,
-                  preferences.ascending,
-                );
-          return Stack(
-            children: [
-              CustomScrollView(
-                slivers: [
-                  _buildNavigationBar(visibleEntries),
-                  SliverToBoxAdapter(child: PathBar(trail: _location.trail, onSegmentTap: _jumpTo)),
-                  SliverToBoxAdapter(
-                    child: _LayoutSwitcher(
-                      layout: preferences.layout,
-                      onChanged: ref.read(browserPreferencesProvider.notifier).setLayout,
+    final width = MediaQuery.sizeOf(context).width;
+    final sidebar = widget.sidebar;
+    final showsSidebar = sidebar != null && width >= _sidebarMinWidth;
+    final visibleEntries = _visibleEntries(_current.nodeId, preferences);
+    final isLoaded = _listings.containsKey(_current.nodeId);
+    return PopScope(
+      canPop: !_isSelecting && _trail.length == 1,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_isSelecting) {
+          _endSelection();
+        } else {
+          _goBack();
+        }
+      },
+      child: CupertinoPageScaffold(
+        backgroundColor: FinderPalette.window(context),
+        child: Row(
+          children: [
+            if (showsSidebar)
+              FinderSidebar(
+                sidebar: sidebar,
+                currentVolumeHandle: widget.volume.handle,
+                folders: _visibleEntries(
+                  widget.rootNodeId,
+                  preferences,
+                ).where((entry) => entry.kind == NodeKindMessage.directory).toList(),
+                activeFolderId: _trail.length > 1 ? _trail[1].nodeId : null,
+                onSelectFolder: _openSidebarFolder,
+              ),
+            Expanded(
+              child: Column(
+                children: [
+                  FinderToolbar(
+                    title: _current.name,
+                    canGoForward: _forwardHistory.isNotEmpty,
+                    onBack: _goBack,
+                    onForward: _goForward,
+                    layout: preferences.layout,
+                    onLayoutChanged: (layout) {
+                      setState(() => _transitionDirection = 0);
+                      ref.read(browserPreferencesProvider.notifier).setLayout(layout);
+                    },
+                    onSelect: _startSelection,
+                    onActions: _showActions,
+                    showsLabels: width >= _labeledToolbarMinWidth,
+                    isSelecting: _isSelecting,
+                    selectedCount: _selected.length,
+                    allSelected:
+                        visibleEntries.isNotEmpty &&
+                        visibleEntries.every((entry) => _selected.containsKey(entry.nodeId)),
+                    onToggleSelectAll: () => _toggleSelectAll(visibleEntries),
+                    onDoneSelecting: _endSelection,
+                  ),
+                  Expanded(
+                    child: ClipRect(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 280),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        transitionBuilder: (child, animation) => _buildTransition(child, animation),
+                        layoutBuilder: (current, previous) =>
+                            Stack(fit: StackFit.expand, children: [...previous, ?current]),
+                        child: KeyedSubtree(
+                          key: _contentKey = ValueKey('${_current.nodeId}-${preferences.layout.name}'),
+                          child: ColoredBox(
+                            color: FinderPalette.window(context),
+                            child: _buildContent(context, preferences, visibleEntries, width),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                  _buildContent(snapshot, visibleEntries, preferences.layout),
-                  SliverPadding(padding: EdgeInsets.only(bottom: _isSelecting ? 96 : 24)),
+                  FinderBottomBar(
+                    trail: _trail,
+                    itemCount: isLoaded ? visibleEntries.length : null,
+                    onSegmentTap: _jumpToTrailIndex,
+                    isSelecting: _isSelecting,
+                    selectedCount: _selected.length,
+                    onCopy: () => _copy(_selected.values.map((row) => row.entry).toList()),
+                    onInfo: () => _showInfo(_selected.values.first),
+                  ),
                 ],
               ),
-              if (_isSelecting)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: MediaQuery.paddingOf(context).bottom,
-                  child: SelectionToolbar(
-                    selectedCount: _selectedIds.length,
-                    onCopy: () => _copy(_selectedEntries(visibleEntries)),
-                    onInfo: () => _showInfo(_selectedEntries(visibleEntries).first),
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  List<FileEntryMessage> _selectedEntries(List<FileEntryMessage> visibleEntries) =>
-      visibleEntries.where((entry) => _selectedIds.contains(entry.nodeId)).toList();
-
-  Widget _buildNavigationBar(List<FileEntryMessage> visibleEntries) {
-    if (_isSelecting) {
-      final allSelected = visibleEntries.isNotEmpty && _selectedIds.length == visibleEntries.length;
-      return CupertinoSliverNavigationBar(
-        largeTitle: Text(_location.title),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => setState(() {
-            if (allSelected) {
-              _selectedIds.clear();
-            } else {
-              _selectedIds.addAll(visibleEntries.map((entry) => entry.nodeId));
-            }
-          }),
-          child: Text(allSelected ? 'Batal Pilih' : 'Pilih Semua'),
+            ),
+          ],
         ),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: _endSelection,
-          child: const Text('Selesai', style: TextStyle(fontWeight: FontWeight.w600)),
-        ),
-      );
-    }
-    return CupertinoSliverNavigationBar(
-      largeTitle: Text(_location.title),
-      previousPageTitle: _location.previousTitle,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CupertinoButton(
-            padding: EdgeInsets.zero,
-            onPressed: () => setState(() => _isSelecting = true),
-            child: const Text('Pilih'),
-          ),
-          const SizedBox(width: 12),
-          CupertinoButton(
-            padding: EdgeInsets.zero,
-            onPressed: _showOptions,
-            child: const Icon(CupertinoIcons.ellipsis_circle),
-          ),
-        ],
       ),
     );
   }
 
   Widget _buildContent(
-    AsyncSnapshot<List<FileEntryMessage>> snapshot,
+    BuildContext context,
+    BrowserPreferences preferences,
     List<FileEntryMessage> visibleEntries,
-    BrowserLayout layout,
+    double width,
   ) {
-    if (snapshot.hasError) {
-      return SliverFillRemaining(
-        hasScrollBody: false,
-        child: EmptyState(
-          icon: CupertinoIcons.exclamationmark_triangle,
-          title: 'Folder tidak bisa dibuka',
-          subtitle: describeReaderError(snapshot.error!),
-        ),
+    final error = _listingErrors[_current.nodeId];
+    if (error != null) {
+      return EmptyState(
+        icon: CupertinoIcons.exclamationmark_triangle,
+        title: 'Folder tidak bisa dibuka',
+        subtitle: describeReaderError(error),
       );
     }
-    if (!snapshot.hasData) {
-      return const SliverFillRemaining(hasScrollBody: false, child: Center(child: CupertinoActivityIndicator()));
-    }
-    if (visibleEntries.isEmpty) {
-      return const SliverFillRemaining(
-        hasScrollBody: false,
-        child: EmptyState(icon: CupertinoIcons.folder, title: 'Folder ini kosong'),
-      );
-    }
-    return layout == BrowserLayout.grid ? _buildGrid(visibleEntries) : _buildList(visibleEntries);
+    if (!_listings.containsKey(_current.nodeId)) return const Center(child: CupertinoActivityIndicator());
+    if (visibleEntries.isEmpty) return const EmptyState(icon: CupertinoIcons.folder, title: 'Folder ini kosong');
+    return preferences.layout == BrowserLayout.grid
+        ? _buildIconGrid(visibleEntries)
+        : _buildList(preferences, visibleEntries, width >= _columnsMinWidth);
   }
 
-  Widget _buildGrid(List<FileEntryMessage> entries) {
-    final isPortrait = MediaQuery.orientationOf(context) == Orientation.portrait;
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      sliver: SliverGrid.builder(
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: isPortrait ? 3 : 5,
-          childAspectRatio: 0.62,
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 10,
-        ),
-        itemCount: entries.length,
-        itemBuilder: (context, index) {
-          final entry = entries[index];
-          return KeyedSubtree(
-            key: ValueKey(entry.nodeId),
-            child: _withContextMenu(
-              entry,
-              EntryGridTile(
-                volumeHandle: _location.volume.handle,
-                entry: entry,
-                isSelecting: _isSelecting,
-                isSelected: _selectedIds.contains(entry.nodeId),
-                onTap: () => _onEntryTap(entry, entries),
-              ),
-            ),
-          );
-        },
+  Widget _buildIconGrid(List<FileEntryMessage> entries) {
+    return GridView.builder(
+      key: PageStorageKey('grid-${_current.nodeId}'),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: _iconTileMaxWidth,
+        childAspectRatio: 0.74,
+        mainAxisSpacing: 6,
+        crossAxisSpacing: 6,
       ),
-    );
-  }
-
-  Widget _buildList(List<FileEntryMessage> entries) {
-    final background = CupertinoColors.secondarySystemGroupedBackground.resolveFrom(context);
-    final separator = CupertinoColors.separator.resolveFrom(context);
-    return SliverList.builder(
       itemCount: entries.length,
       itemBuilder: (context, index) {
-        final entry = entries[index];
-        return KeyedSubtree(
-          key: ValueKey(entry.nodeId),
-          child: ColoredBox(
-            color: background,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _withContextMenu(
-                  entry,
-                  EntryListTile(
-                    volumeHandle: _location.volume.handle,
-                    entry: entry,
-                    isSelecting: _isSelecting,
-                    isSelected: _selectedIds.contains(entry.nodeId),
-                    onTap: () => _onEntryTap(entry, entries),
-                  ),
-                ),
-                if (index < entries.length - 1)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 72),
-                    child: SizedBox(height: 0.5, width: double.infinity, child: ColoredBox(color: separator)),
-                  ),
-              ],
-            ),
-          ),
+        final row = _ListRowModel(entry: entries[index], depth: 0, trail: _trail, siblings: entries);
+        return FinderIconTile(
+          key: ValueKey(row.entry.nodeId),
+          volumeHandle: widget.volume.handle,
+          entry: row.entry,
+          isSelected: _selected.containsKey(row.entry.nodeId),
+          onTap: () => _onTap(row),
+          onLongPress: () => _onLongPress(row),
         );
       },
     );
   }
 
-  Widget _withContextMenu(FileEntryMessage entry, Widget child) {
-    if (_isSelecting) return child;
-    return CupertinoContextMenu(
-      actions: [
-        CupertinoContextMenuAction(
-          trailingIcon: CupertinoIcons.square_arrow_down,
-          onPressed: () {
-            Navigator.of(context, rootNavigator: true).pop();
-            _copy([entry]);
-          },
-          child: const Text('Salin ke HP'),
-        ),
-        CupertinoContextMenuAction(
-          trailingIcon: CupertinoIcons.info_circle,
-          onPressed: () {
-            Navigator.of(context, rootNavigator: true).pop();
-            _showInfo(entry);
-          },
-          child: const Text('Info'),
-        ),
-        CupertinoContextMenuAction(
-          trailingIcon: CupertinoIcons.checkmark_circle,
-          onPressed: () {
-            Navigator.of(context, rootNavigator: true).pop();
-            setState(() {
-              _isSelecting = true;
-              _selectedIds.add(entry.nodeId);
-            });
-          },
-          child: const Text('Pilih'),
+  Widget _buildList(BrowserPreferences preferences, List<FileEntryMessage> entries, bool showsColumns) {
+    final rows = <Object>[];
+    void addRows(List<FileEntryMessage> siblings, int depth, List<PathSegment> trail) {
+      for (final entry in siblings) {
+        rows.add(_ListRowModel(entry: entry, depth: depth, trail: trail, siblings: siblings));
+        if (entry.kind != NodeKindMessage.directory || !_expandedFolderIds.contains(entry.nodeId)) continue;
+        if (!_listings.containsKey(entry.nodeId)) {
+          rows.add(depth + 1);
+          continue;
+        }
+        addRows(_visibleEntries(entry.nodeId, preferences), depth + 1, [
+          ...trail,
+          PathSegment(entry.nodeId, entry.name),
+        ]);
+      }
+    }
+
+    addRows(entries, 0, _trail);
+    final notifier = ref.read(browserPreferencesProvider.notifier);
+    return Column(
+      children: [
+        if (showsColumns)
+          FinderListHeader(
+            sortField: preferences.sortField,
+            ascending: preferences.ascending,
+            onSort: notifier.selectSortField,
+          ),
+        Expanded(
+          child: ListView.builder(
+            key: PageStorageKey('list-${_current.nodeId}'),
+            padding: const EdgeInsets.only(bottom: 24),
+            itemCount: rows.length,
+            itemBuilder: (context, index) {
+              final row = rows[index];
+              if (row is int) return FinderListLoadingRow(depth: row);
+              final model = row as _ListRowModel;
+              return FinderListRow(
+                key: ValueKey('row-${model.entry.nodeId}'),
+                volumeHandle: widget.volume.handle,
+                entry: model.entry,
+                depth: model.depth,
+                rowIndex: index,
+                isExpanded: _expandedFolderIds.contains(model.entry.nodeId),
+                isSelected: _selected.containsKey(model.entry.nodeId),
+                showsColumns: showsColumns,
+                onTap: () => _onTap(model),
+                onLongPress: () => _onLongPress(model),
+                onToggleExpanded: () => _toggleExpanded(model.entry),
+              );
+            },
+          ),
         ),
       ],
-      child: child,
     );
   }
 
-  void _onEntryTap(FileEntryMessage entry, List<FileEntryMessage> entries) {
-    if (_isSelecting) {
-      setState(() {
-        if (!_selectedIds.remove(entry.nodeId)) _selectedIds.add(entry.nodeId);
-      });
+  void _toggleExpanded(FileEntryMessage folder) {
+    setState(() {
+      if (!_expandedFolderIds.remove(folder.nodeId)) {
+        _expandedFolderIds.add(folder.nodeId);
+        _ensureLoaded(folder.nodeId);
+      }
+    });
+  }
+
+  Widget _buildTransition(Widget child, Animation<double> animation) {
+    final direction = _transitionDirection.toDouble();
+    if (direction == 0) return FadeTransition(opacity: animation, child: child);
+    final isIncoming = child.key == _contentKey;
+    final offset = Tween<Offset>(
+      begin: Offset((isIncoming ? direction : -direction) * 0.3, 0),
+      end: Offset.zero,
+    ).animate(animation);
+    return FadeTransition(
+      opacity: animation,
+      child: SlideTransition(position: offset, child: child),
+    );
+  }
+
+  void _navigateTo(List<PathSegment> trail, {required int direction, bool keepsForwardHistory = false}) {
+    setState(() {
+      _transitionDirection = direction;
+      if (!keepsForwardHistory) _forwardHistory.clear();
+      _trail = trail;
+      _expandedFolderIds.clear();
+      _isSelecting = false;
+      _selected.clear();
+    });
+    _ensureLoaded(trail.last.nodeId);
+  }
+
+  void _openFolder(_ListRowModel row) =>
+      _navigateTo([...row.trail, PathSegment(row.entry.nodeId, row.entry.name)], direction: 1);
+
+  void _openSidebarFolder(FileEntryMessage folder) =>
+      _navigateTo([_trail.first, PathSegment(folder.nodeId, folder.name)], direction: 1);
+
+  void _goBack() {
+    if (_trail.length == 1) {
+      Navigator.of(context).maybePop();
       return;
     }
+    final previous = _trail;
+    _navigateTo(_trail.sublist(0, _trail.length - 1), direction: -1, keepsForwardHistory: true);
+    setState(() => _forwardHistory.add(previous));
+  }
+
+  void _goForward() {
+    if (_forwardHistory.isEmpty) return;
+    final next = _forwardHistory.removeLast();
+    _navigateTo(next, direction: 1, keepsForwardHistory: true);
+  }
+
+  void _jumpToTrailIndex(int index) {
+    if (index >= _trail.length - 1) return;
+    final previous = _trail;
+    _navigateTo(_trail.sublist(0, index + 1), direction: -1, keepsForwardHistory: true);
+    setState(
+      () => _forwardHistory
+        ..clear()
+        ..add(previous),
+    );
+  }
+
+  void _startSelection() => setState(() => _isSelecting = true);
+
+  void _endSelection() => setState(() {
+    _isSelecting = false;
+    _selected.clear();
+  });
+
+  void _toggleSelected(_ListRowModel row) => setState(() {
+    if (_selected.remove(row.entry.nodeId) == null) _selected[row.entry.nodeId] = row;
+  });
+
+  void _toggleSelectAll(List<FileEntryMessage> visibleEntries) {
+    final allSelected = visibleEntries.every((entry) => _selected.containsKey(entry.nodeId));
+    setState(() {
+      if (allSelected) {
+        _selected.clear();
+      } else {
+        for (final entry in visibleEntries) {
+          _selected[entry.nodeId] = _ListRowModel(entry: entry, depth: 0, trail: _trail, siblings: visibleEntries);
+        }
+      }
+    });
+  }
+
+  void _onTap(_ListRowModel row) {
+    if (_isSelecting) {
+      _toggleSelected(row);
+      return;
+    }
+    _open(row);
+  }
+
+  void _open(_ListRowModel row) {
+    final entry = row.entry;
     final category = categorizeEntry(entry);
     if (category == FileCategory.folder) {
-      Navigator.of(context).push(browserRoute(_location.child(entry)));
+      _openFolder(row);
       return;
     }
     if (!entry.isReadable || !isPreviewable(category)) {
-      _showInfo(entry);
+      _showInfo(row);
       return;
     }
-    final rootNavigator = Navigator.of(context, rootNavigator: true);
-    final volume = _location.volume;
-    final path = _location.pathOf(entry);
+    final volume = widget.volume;
+    final path = joinPath(row.trail, entry.name);
     final Widget screen = switch (category) {
-      FileCategory.image => _imagePreview(entry, entries),
+      FileCategory.image => _imagePreview(row),
       FileCategory.pdf => PdfPreviewScreen(volume: volume, entry: entry, path: path),
       FileCategory.video || FileCategory.audio => VideoPlayerScreen(
-          volume: volume,
-          entry: entry,
-          path: path,
-          isAudio: category == FileCategory.audio,
-        ),
+        volume: volume,
+        entry: entry,
+        path: path,
+        isAudio: category == FileCategory.audio,
+      ),
       _ => TextPreviewScreen(volume: volume, entry: entry, path: path),
     };
-    rootNavigator.push(CupertinoPageRoute<void>(fullscreenDialog: true, builder: (_) => screen));
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push(CupertinoPageRoute<void>(fullscreenDialog: true, builder: (_) => screen));
   }
 
-  Widget _imagePreview(FileEntryMessage entry, List<FileEntryMessage> entries) {
-    final images = entries
+  Widget _imagePreview(_ListRowModel row) {
+    final images = row.siblings
         .where((candidate) => candidate.isReadable && categorizeEntry(candidate) == FileCategory.image)
         .toList();
     return ImagePreviewScreen(
-      volume: _location.volume,
+      volume: widget.volume,
       images: images,
-      initialIndex: images.indexWhere((image) => image.nodeId == entry.nodeId),
-      pathOf: _location.pathOf,
+      initialIndex: images.indexWhere((image) => image.nodeId == row.entry.nodeId),
+      pathOf: (image) => joinPath(row.trail, image.name),
     );
   }
 
-  void _showInfo(FileEntryMessage entry) {
-    Navigator.of(context, rootNavigator: true)
-        .push(fileInfoRoute(volume: _location.volume, entry: entry, path: _location.pathOf(entry)));
+  Future<void> _onLongPress(_ListRowModel row) async {
+    if (_isSelecting) {
+      _toggleSelected(row);
+      return;
+    }
+    final action = await showEntryActions(context, row.entry);
+    if (!mounted || action == null) return;
+    switch (action) {
+      case EntryAction.open:
+        _open(row);
+      case EntryAction.copyToPhone:
+        await _copy([row.entry]);
+      case EntryAction.copyName:
+        await Clipboard.setData(ClipboardData(text: row.entry.name));
+        if (mounted) ToastBanner.show(context, 'Nama disalin');
+      case EntryAction.info:
+        _showInfo(row);
+      case EntryAction.select:
+        setState(() {
+          _isSelecting = true;
+          _selected[row.entry.nodeId] = row;
+        });
+    }
+  }
+
+  void _showInfo(_ListRowModel row) {
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push(fileInfoRoute(volume: widget.volume, entry: row.entry, path: joinPath(row.trail, row.entry.name)));
   }
 
   Future<void> _copy(List<FileEntryMessage> entries) async {
-    await startCopyFlow(context, ref, volumeHandle: _location.volume.handle, entries: entries);
+    await startCopyFlow(context, ref, volumeHandle: widget.volume.handle, entries: entries);
     if (mounted && _isSelecting) _endSelection();
   }
 
-  void _endSelection() => setState(() {
-        _isSelecting = false;
-        _selectedIds.clear();
-      });
-
-  void _jumpTo(PathSegment segment) {
-    if (segment.nodeId == _location.nodeId) return;
-    Navigator.of(context).popUntil((route) => route.settings.name == browserRouteName(segment.nodeId) || route.isFirst);
-  }
-
-  void _showOptions() {
+  void _showActions() {
     final preferences = ref.read(browserPreferencesProvider);
     final notifier = ref.read(browserPreferencesProvider.notifier);
     showCupertinoModalPopup<void>(
       context: context,
       builder: (sheetContext) => CupertinoActionSheet(
-        title: const Text('Urutkan'),
+        title: Text(_current.name),
         actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(sheetContext);
+              _startSelection();
+            },
+            child: const Text('Pilih'),
+          ),
           for (final field in SortField.values)
             CupertinoActionSheetAction(
               onPressed: () {
@@ -364,7 +517,7 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
                     const Icon(CupertinoIcons.checkmark, size: 18),
                     const SizedBox(width: 6),
                   ],
-                  Text(sortFieldLabel(field)),
+                  Text('Urutkan: ${sortFieldLabel(field)}'),
                   if (preferences.sortField == field) ...[
                     const SizedBox(width: 6),
                     Icon(preferences.ascending ? CupertinoIcons.chevron_up : CupertinoIcons.chevron_down, size: 16),
@@ -385,36 +538,6 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
           onPressed: () => Navigator.pop(sheetContext),
           child: const Text('Batal'),
         ),
-      ),
-    );
-  }
-}
-
-class _LayoutSwitcher extends StatelessWidget {
-  const _LayoutSwitcher({required this.layout, required this.onChanged});
-
-  final BrowserLayout layout;
-  final ValueChanged<BrowserLayout> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      child: CupertinoSlidingSegmentedControl<BrowserLayout>(
-        groupValue: layout,
-        onValueChanged: (value) {
-          if (value != null) onChanged(value);
-        },
-        children: const {
-          BrowserLayout.grid: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-            child: Icon(CupertinoIcons.square_grid_2x2, size: 18),
-          ),
-          BrowserLayout.list: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-            child: Icon(CupertinoIcons.list_bullet, size: 18),
-          ),
-        },
       ),
     );
   }

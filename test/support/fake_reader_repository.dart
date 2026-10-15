@@ -12,19 +12,18 @@ FileEntryMessage fakeEntry({
   int childCount = -1,
   int modifiedAtMillis = 0,
   bool isReadable = true,
-}) =>
-    FileEntryMessage(
-      nodeId: id,
-      parentId: 2,
-      name: name,
-      kind: kind,
-      size: size,
-      childCount: childCount,
-      createdAtMillis: 0,
-      modifiedAtMillis: modifiedAtMillis,
-      isCompressed: !isReadable,
-      isReadable: isReadable,
-    );
+}) => FileEntryMessage(
+  nodeId: id,
+  parentId: 2,
+  name: name,
+  kind: kind,
+  size: size,
+  childCount: childCount,
+  createdAtMillis: 0,
+  modifiedAtMillis: modifiedAtMillis,
+  isCompressed: !isReadable,
+  isReadable: isReadable,
+);
 
 CopyProgressMessage fakeProgress({
   required int jobId,
@@ -33,27 +32,23 @@ CopyProgressMessage fakeProgress({
   int totalFiles = 0,
   int copiedBytes = 0,
   int totalBytes = 0,
-}) =>
-    CopyProgressMessage(
-      jobId: jobId,
-      currentName: 'photo.jpg',
-      copiedBytes: copiedBytes,
-      totalBytes: totalBytes,
-      copiedFiles: copiedFiles,
-      totalFiles: totalFiles,
-      skippedFiles: 0,
-      bytesPerSecond: 0,
-      state: state,
-      errorMessage: null,
-      destinationName: 'Download',
-    );
+}) => CopyProgressMessage(
+  jobId: jobId,
+  currentName: 'photo.jpg',
+  copiedBytes: copiedBytes,
+  totalBytes: totalBytes,
+  copiedFiles: copiedFiles,
+  totalFiles: totalFiles,
+  skippedFiles: 0,
+  bytesPerSecond: 0,
+  state: state,
+  errorMessage: null,
+  destinationName: 'Download',
+);
 
 class FakeReaderRepository implements ReaderRepository {
-  FakeReaderRepository({
-    this.devices = const [],
-    this.openResult,
-    Map<int, List<FileEntryMessage>>? directories,
-  }) : directories = directories ?? {};
+  FakeReaderRepository({this.devices = const [], this.openResult, Map<int, List<FileEntryMessage>>? directories})
+    : directories = directories ?? {};
 
   List<UsbDeviceMessage> devices;
   DeviceOpenResult? openResult;

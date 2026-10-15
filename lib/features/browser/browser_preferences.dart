@@ -39,5 +39,6 @@ class BrowserPreferencesNotifier extends Notifier<BrowserPreferences> {
   void toggleHidden() => state = state.copyWith(showHidden: !state.showHidden);
 }
 
-final browserPreferencesProvider =
-    NotifierProvider<BrowserPreferencesNotifier, BrowserPreferences>(BrowserPreferencesNotifier.new);
+final browserPreferencesProvider = NotifierProvider<BrowserPreferencesNotifier, BrowserPreferences>(
+  BrowserPreferencesNotifier.new,
+);

@@ -34,7 +34,11 @@ class VideoPlayerScreen extends ConsumerStatefulWidget {
 class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   static const _skipMillis = 15000;
   static const _controlsTimeout = Duration(seconds: 3);
-  static const _timeStyle = TextStyle(color: CupertinoColors.white, fontSize: 13, fontFeatures: [FontFeature.tabularFigures()]);
+  static const _timeStyle = TextStyle(
+    color: CupertinoColors.white,
+    fontSize: 13,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
 
   late final ReaderRepository _repository;
   StreamSubscription<PlayerStateMessage>? _stateSubscription;
@@ -120,41 +124,48 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     final errorText = _startError != null
         ? describeReaderError(_startError!)
         : state?.errorMessage != null
-            ? 'Media tidak bisa diputar (${state!.errorMessage}).'
-            : null;
+        ? 'Media tidak bisa diputar (${state!.errorMessage}).'
+        : null;
     final isLoading = errorText == null && (playerId == null || state == null || state.isBuffering);
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.black,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: _toggleControls,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (playerId != null && !widget.isAudio)
-              AndroidView(
-                viewType: volumePlayerViewType,
-                creationParams: <String, Object>{'playerId': playerId},
-                creationParamsCodec: const StandardMessageCodec(),
-              ),
-            if (widget.isAudio)
-              const Center(child: Icon(CupertinoIcons.music_note_2, size: 120, color: Color(0x55FFFFFF))),
-            if (errorText != null)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Text(errorText, textAlign: TextAlign.center, style: const TextStyle(color: CupertinoColors.white)),
-                ),
-              )
-            else if (isLoading)
-              const Center(child: CupertinoActivityIndicator(color: CupertinoColors.white, radius: 14)),
-            AnimatedOpacity(
-              opacity: _controlsVisible ? 1 : 0,
-              duration: const Duration(milliseconds: 200),
-              child: IgnorePointer(ignoring: !_controlsVisible, child: _buildControls(context, state)),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (playerId != null && !widget.isAudio)
+            AndroidView(
+              viewType: volumePlayerViewType,
+              creationParams: <String, Object>{'playerId': playerId},
+              creationParamsCodec: const StandardMessageCodec(),
             ),
-          ],
-        ),
+          if (widget.isAudio)
+            const Center(child: Icon(CupertinoIcons.music_note_2, size: 120, color: Color(0x55FFFFFF))),
+          if (errorText != null)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(
+                  errorText,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: CupertinoColors.white),
+                ),
+              ),
+            )
+          else if (isLoading)
+            const Center(child: CupertinoActivityIndicator(color: CupertinoColors.white, radius: 14)),
+          GestureDetector(
+            key: const ValueKey('player-tap-layer'),
+            behavior: HitTestBehavior.opaque,
+            onTap: _toggleControls,
+            child: const SizedBox.expand(),
+          ),
+          AnimatedOpacity(
+            key: const ValueKey('player-controls'),
+            opacity: _controlsVisible ? 1 : 0,
+            duration: const Duration(milliseconds: 200),
+            child: IgnorePointer(ignoring: !_controlsVisible, child: _buildControls(context, state)),
+          ),
+        ],
       ),
     );
   }
@@ -164,86 +175,96 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     final position = _dragPositionMillis ?? (state?.positionMillis ?? 0).toDouble();
     final sliderMax = max(duration, 1).toDouble();
     final isPlaying = state?.isPlaying ?? false;
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0x99000000), Color(0x00000000), Color(0x00000000), Color(0x99000000)],
-          stops: [0, 0.2, 0.75, 1],
-        ),
-      ),
-      child: SafeArea(
-        child: Column(
-          children: [
-            Row(
-              children: [
-                CupertinoButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Selesai', style: TextStyle(color: CupertinoColors.white, fontWeight: FontWeight.w600)),
-                ),
-                Expanded(
-                  child: Text(
-                    widget.entry.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: CupertinoColors.white),
-                  ),
-                ),
-                const SizedBox(width: 16),
-              ],
-            ),
-            const Spacer(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CupertinoButton(
-                  onPressed: () => _seekBy(-_skipMillis),
-                  child: const Icon(CupertinoIcons.gobackward_15, color: CupertinoColors.white, size: 34),
-                ),
-                const SizedBox(width: 24),
-                CupertinoButton(
-                  onPressed: _togglePlayback,
-                  child: Icon(
-                    isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
-                    color: CupertinoColors.white,
-                    size: 48,
-                  ),
-                ),
-                const SizedBox(width: 24),
-                CupertinoButton(
-                  onPressed: () => _seekBy(_skipMillis),
-                  child: const Icon(CupertinoIcons.goforward_15, color: CupertinoColors.white, size: 34),
-                ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: Row(
-                children: [
-                  Text(formatPlaybackTime(position.round()), style: _timeStyle),
-                  Expanded(
-                    child: CupertinoSlider(
-                      value: position.clamp(0, sliderMax).toDouble(),
-                      max: sliderMax,
-                      activeColor: CupertinoColors.white,
-                      onChangeStart: (_) => _hideTimer?.cancel(),
-                      onChanged: (value) => setState(() => _dragPositionMillis = value),
-                      onChangeEnd: (value) {
-                        final playerId = _playerId;
-                        if (playerId != null) _repository.playerSeekTo(playerId, value.round());
-                        setState(() => _dragPositionMillis = null);
-                        _scheduleHide();
-                      },
-                    ),
-                  ),
-                  Text('-${formatPlaybackTime(max(duration - position.round(), 0))}', style: _timeStyle),
-                ],
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        const IgnorePointer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x99000000), Color(0x00000000), Color(0x00000000), Color(0x99000000)],
+                stops: [0, 0.2, 0.75, 1],
               ),
             ),
-          ],
+          ),
         ),
-      ),
+        SafeArea(
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  CupertinoButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text(
+                      'Selesai',
+                      style: TextStyle(color: CupertinoColors.white, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      widget.entry.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: CupertinoColors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                ],
+              ),
+              const Spacer(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CupertinoButton(
+                    onPressed: () => _seekBy(-_skipMillis),
+                    child: const Icon(CupertinoIcons.gobackward_15, color: CupertinoColors.white, size: 34),
+                  ),
+                  const SizedBox(width: 24),
+                  CupertinoButton(
+                    onPressed: _togglePlayback,
+                    child: Icon(
+                      isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
+                      color: CupertinoColors.white,
+                      size: 48,
+                    ),
+                  ),
+                  const SizedBox(width: 24),
+                  CupertinoButton(
+                    onPressed: () => _seekBy(_skipMillis),
+                    child: const Icon(CupertinoIcons.goforward_15, color: CupertinoColors.white, size: 34),
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Row(
+                  children: [
+                    Text(formatPlaybackTime(position.round()), style: _timeStyle),
+                    Expanded(
+                      child: CupertinoSlider(
+                        value: position.clamp(0, sliderMax).toDouble(),
+                        max: sliderMax,
+                        activeColor: CupertinoColors.white,
+                        onChangeStart: (_) => _hideTimer?.cancel(),
+                        onChanged: (value) => setState(() => _dragPositionMillis = value),
+                        onChangeEnd: (value) {
+                          final playerId = _playerId;
+                          if (playerId != null) _repository.playerSeekTo(playerId, value.round());
+                          setState(() => _dragPositionMillis = null);
+                          _scheduleHide();
+                        },
+                      ),
+                    ),
+                    Text('-${formatPlaybackTime(max(duration - position.round(), 0))}', style: _timeStyle),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

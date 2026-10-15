@@ -81,13 +81,29 @@ FileCategory categorizeEntry(FileEntryMessage entry) => categorize(name: entry.n
 bool isPreviewable(FileCategory category) => _previewableCategories.contains(category);
 
 String categoryLabel(FileCategory category) => switch (category) {
-      FileCategory.folder => 'Folder',
-      FileCategory.image => 'Gambar',
-      FileCategory.video => 'Video',
-      FileCategory.audio => 'Audio',
-      FileCategory.pdf => 'Dokumen PDF',
-      FileCategory.text => 'Teks',
-      FileCategory.archive => 'Arsip',
-      FileCategory.code => 'Kode',
-      FileCategory.other => 'File',
-    };
+  FileCategory.folder => 'Folder',
+  FileCategory.image => 'Gambar',
+  FileCategory.video => 'Video',
+  FileCategory.audio => 'Audio',
+  FileCategory.pdf => 'Dokumen PDF',
+  FileCategory.text => 'Teks',
+  FileCategory.archive => 'Arsip',
+  FileCategory.code => 'Kode',
+  FileCategory.other => 'File',
+};
+
+String fileExtensionLabel(String name) {
+  final dotIndex = name.lastIndexOf('.');
+  if (dotIndex <= 0 || dotIndex == name.length - 1) return '';
+  return name.substring(dotIndex + 1).toUpperCase();
+}
+
+String entryKindLabel(FileEntryMessage entry) {
+  final category = categorizeEntry(entry);
+  if (category == FileCategory.folder) return 'Folder';
+  if (entry.kind == NodeKindMessage.symlink) return 'Alias';
+  final extension = fileExtensionLabel(entry.name);
+  final label = categoryLabel(category);
+  if (extension.isEmpty || label.endsWith(extension)) return label;
+  return category == FileCategory.other ? 'File $extension' : '$label $extension';
+}

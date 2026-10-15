@@ -4,10 +4,10 @@ import '../../shared/natural_compare.dart';
 enum SortField { name, date, size }
 
 String sortFieldLabel(SortField field) => switch (field) {
-      SortField.name => 'Nama',
-      SortField.date => 'Tanggal',
-      SortField.size => 'Ukuran',
-    };
+  SortField.name => 'Nama',
+  SortField.date => 'Tanggal',
+  SortField.size => 'Ukuran',
+};
 
 List<FileEntryMessage> sortEntries(Iterable<FileEntryMessage> entries, SortField field, bool ascending) {
   final sorted = entries.toList();

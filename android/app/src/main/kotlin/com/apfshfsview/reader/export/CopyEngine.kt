@@ -42,7 +42,11 @@ class CopyEngine(
         } catch (cancelled: CopyCancelledException) {
             snapshot(CopyState.CANCELLED, null)
         } catch (error: Exception) {
-            snapshot(CopyState.FAILED, "Gagal menyalin $currentName: ${error.message}")
+            if (CopyJobs.isCancelled(job.jobId)) {
+                snapshot(CopyState.CANCELLED, null)
+            } else {
+                snapshot(CopyState.FAILED, "Gagal menyalin $currentName: ${error.message}")
+            }
         }
     }
 

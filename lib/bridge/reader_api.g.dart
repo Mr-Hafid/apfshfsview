@@ -9,22 +9,14 @@ import 'dart:typed_data' show Float64List, Int32List, Int64List;
 import 'package:flutter/services.dart';
 import 'package:meta/meta.dart' show immutable, protected, visibleForTesting;
 
-Object? _extractReplyValueOrThrow(
-    List<Object?>? replyList,
-    String channelName, {
-    required bool isNullValid,
-}) {
+Object? _extractReplyValueOrThrow(List<Object?>? replyList, String channelName, {required bool isNullValid}) {
   if (replyList == null) {
     throw PlatformException(
       code: 'channel-error',
       message: 'Unable to establish connection on channel: "$channelName".',
     );
   } else if (replyList.length > 1) {
-    throw PlatformException(
-      code: replyList[0]! as String,
-      message: replyList[1] as String?,
-      details: replyList[2],
-    );
+    throw PlatformException(code: replyList[0]! as String, message: replyList[1] as String?, details: replyList[2]);
   } else if (!isNullValid && (replyList.isNotEmpty && replyList[0] == null)) {
     throw PlatformException(
       code: 'null-error',
@@ -33,7 +25,6 @@ Object? _extractReplyValueOrThrow(
   }
   return replyList.firstOrNull;
 }
-
 
 List<Object?> wrapResponse({Object? result, PlatformException? error, bool empty = false}) {
   if (empty) {
@@ -44,6 +35,7 @@ List<Object?> wrapResponse({Object? result, PlatformException? error, bool empty
   }
   return <Object?>[error.code, error.message, error.details];
 }
+
 bool _deepEquals(Object? a, Object? b) {
   if (identical(a, b)) {
     return true;
@@ -55,9 +47,7 @@ bool _deepEquals(Object? a, Object? b) {
     return a == b;
   }
   if (a is List && b is List) {
-    return a.length == b.length &&
-        a.indexed
-            .every(((int, dynamic) item) => _deepEquals(item.$2, b[item.$1]));
+    return a.length == b.length && a.indexed.every(((int, dynamic) item) => _deepEquals(item.$2, b[item.$1]));
   }
   if (a is Map && b is Map) {
     if (a.length != b.length) {
@@ -106,12 +96,7 @@ int _deepHash(Object? value) {
   return value.hashCode;
 }
 
-
-enum NodeKindMessage {
-  file,
-  directory,
-  symlink;
-}
+enum NodeKindMessage { file, directory, symlink }
 
 class UsbDeviceMessage {
   UsbDeviceMessage({
@@ -130,16 +115,12 @@ class UsbDeviceMessage {
   bool hasPermission;
 
   List<Object?> _toList() {
-    return <Object?>[
-      deviceId,
-      productName,
-      manufacturerName,
-      hasPermission,
-    ];
+    return <Object?>[deviceId, productName, manufacturerName, hasPermission];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static UsbDeviceMessage decode(Object result) {
     result as List<Object?>;
@@ -160,7 +141,10 @@ class UsbDeviceMessage {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(deviceId, other.deviceId) && _deepEquals(productName, other.productName) && _deepEquals(manufacturerName, other.manufacturerName) && _deepEquals(hasPermission, other.hasPermission);
+    return _deepEquals(deviceId, other.deviceId) &&
+        _deepEquals(productName, other.productName) &&
+        _deepEquals(manufacturerName, other.manufacturerName) &&
+        _deepEquals(hasPermission, other.hasPermission);
   }
 
   @override
@@ -219,7 +203,8 @@ class VolumeMessage {
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static VolumeMessage decode(Object result) {
     result as List<Object?>;
@@ -245,7 +230,15 @@ class VolumeMessage {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(volumeHandle, other.volumeHandle) && _deepEquals(name, other.name) && _deepEquals(format, other.format) && _deepEquals(role, other.role) && _deepEquals(usedBytes, other.usedBytes) && _deepEquals(totalBytes, other.totalBytes) && _deepEquals(isEncrypted, other.isEncrypted) && _deepEquals(isUncleanlyUnmounted, other.isUncleanlyUnmounted) && _deepEquals(failureCode, other.failureCode);
+    return _deepEquals(volumeHandle, other.volumeHandle) &&
+        _deepEquals(name, other.name) &&
+        _deepEquals(format, other.format) &&
+        _deepEquals(role, other.role) &&
+        _deepEquals(usedBytes, other.usedBytes) &&
+        _deepEquals(totalBytes, other.totalBytes) &&
+        _deepEquals(isEncrypted, other.isEncrypted) &&
+        _deepEquals(isUncleanlyUnmounted, other.isUncleanlyUnmounted) &&
+        _deepEquals(failureCode, other.failureCode);
   }
 
   @override
@@ -259,11 +252,7 @@ class VolumeMessage {
 }
 
 class DeviceOpenResult {
-  DeviceOpenResult({
-    required this.capacityBytes,
-    required this.volumes,
-    required this.unrecognizedPartitionTypes,
-  });
+  DeviceOpenResult({required this.capacityBytes, required this.volumes, required this.unrecognizedPartitionTypes});
 
   int capacityBytes;
 
@@ -272,15 +261,12 @@ class DeviceOpenResult {
   List<String> unrecognizedPartitionTypes;
 
   List<Object?> _toList() {
-    return <Object?>[
-      capacityBytes,
-      volumes,
-      unrecognizedPartitionTypes,
-    ];
+    return <Object?>[capacityBytes, volumes, unrecognizedPartitionTypes];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static DeviceOpenResult decode(Object result) {
     result as List<Object?>;
@@ -300,7 +286,9 @@ class DeviceOpenResult {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(capacityBytes, other.capacityBytes) && _deepEquals(volumes, other.volumes) && _deepEquals(unrecognizedPartitionTypes, other.unrecognizedPartitionTypes);
+    return _deepEquals(capacityBytes, other.capacityBytes) &&
+        _deepEquals(volumes, other.volumes) &&
+        _deepEquals(unrecognizedPartitionTypes, other.unrecognizedPartitionTypes);
   }
 
   @override
@@ -363,7 +351,8 @@ class FileEntryMessage {
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static FileEntryMessage decode(Object result) {
     result as List<Object?>;
@@ -390,7 +379,16 @@ class FileEntryMessage {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(nodeId, other.nodeId) && _deepEquals(parentId, other.parentId) && _deepEquals(name, other.name) && _deepEquals(kind, other.kind) && _deepEquals(size, other.size) && _deepEquals(childCount, other.childCount) && _deepEquals(createdAtMillis, other.createdAtMillis) && _deepEquals(modifiedAtMillis, other.modifiedAtMillis) && _deepEquals(isCompressed, other.isCompressed) && _deepEquals(isReadable, other.isReadable);
+    return _deepEquals(nodeId, other.nodeId) &&
+        _deepEquals(parentId, other.parentId) &&
+        _deepEquals(name, other.name) &&
+        _deepEquals(kind, other.kind) &&
+        _deepEquals(size, other.size) &&
+        _deepEquals(childCount, other.childCount) &&
+        _deepEquals(createdAtMillis, other.createdAtMillis) &&
+        _deepEquals(modifiedAtMillis, other.modifiedAtMillis) &&
+        _deepEquals(isCompressed, other.isCompressed) &&
+        _deepEquals(isReadable, other.isReadable);
   }
 
   @override
@@ -457,7 +455,8 @@ class CopyProgressMessage {
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static CopyProgressMessage decode(Object result) {
     result as List<Object?>;
@@ -485,7 +484,17 @@ class CopyProgressMessage {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(jobId, other.jobId) && _deepEquals(currentName, other.currentName) && _deepEquals(copiedBytes, other.copiedBytes) && _deepEquals(totalBytes, other.totalBytes) && _deepEquals(copiedFiles, other.copiedFiles) && _deepEquals(totalFiles, other.totalFiles) && _deepEquals(skippedFiles, other.skippedFiles) && _deepEquals(bytesPerSecond, other.bytesPerSecond) && _deepEquals(state, other.state) && _deepEquals(errorMessage, other.errorMessage) && _deepEquals(destinationName, other.destinationName);
+    return _deepEquals(jobId, other.jobId) &&
+        _deepEquals(currentName, other.currentName) &&
+        _deepEquals(copiedBytes, other.copiedBytes) &&
+        _deepEquals(totalBytes, other.totalBytes) &&
+        _deepEquals(copiedFiles, other.copiedFiles) &&
+        _deepEquals(totalFiles, other.totalFiles) &&
+        _deepEquals(skippedFiles, other.skippedFiles) &&
+        _deepEquals(bytesPerSecond, other.bytesPerSecond) &&
+        _deepEquals(state, other.state) &&
+        _deepEquals(errorMessage, other.errorMessage) &&
+        _deepEquals(destinationName, other.destinationName);
   }
 
   @override
@@ -524,19 +533,12 @@ class PlayerStateMessage {
   String? errorMessage;
 
   List<Object?> _toList() {
-    return <Object?>[
-      playerId,
-      positionMillis,
-      durationMillis,
-      isPlaying,
-      isBuffering,
-      hasEnded,
-      errorMessage,
-    ];
+    return <Object?>[playerId, positionMillis, durationMillis, isPlaying, isBuffering, hasEnded, errorMessage];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PlayerStateMessage decode(Object result) {
     result as List<Object?>;
@@ -560,7 +562,13 @@ class PlayerStateMessage {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(playerId, other.playerId) && _deepEquals(positionMillis, other.positionMillis) && _deepEquals(durationMillis, other.durationMillis) && _deepEquals(isPlaying, other.isPlaying) && _deepEquals(isBuffering, other.isBuffering) && _deepEquals(hasEnded, other.hasEnded) && _deepEquals(errorMessage, other.errorMessage);
+    return _deepEquals(playerId, other.playerId) &&
+        _deepEquals(positionMillis, other.positionMillis) &&
+        _deepEquals(durationMillis, other.durationMillis) &&
+        _deepEquals(isPlaying, other.isPlaying) &&
+        _deepEquals(isBuffering, other.isBuffering) &&
+        _deepEquals(hasEnded, other.hasEnded) &&
+        _deepEquals(errorMessage, other.errorMessage);
   }
 
   @override
@@ -573,7 +581,6 @@ class PlayerStateMessage {
   }
 }
 
-
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
   @override
@@ -581,25 +588,25 @@ class _PigeonCodec extends StandardMessageCodec {
     if (value is int) {
       buffer.putUint8(4);
       buffer.putInt64(value);
-    }    else if (value is NodeKindMessage) {
+    } else if (value is NodeKindMessage) {
       buffer.putUint8(129);
       writeValue(buffer, value.index);
-    }    else if (value is UsbDeviceMessage) {
+    } else if (value is UsbDeviceMessage) {
       buffer.putUint8(130);
       writeValue(buffer, value.encode());
-    }    else if (value is VolumeMessage) {
+    } else if (value is VolumeMessage) {
       buffer.putUint8(131);
       writeValue(buffer, value.encode());
-    }    else if (value is DeviceOpenResult) {
+    } else if (value is DeviceOpenResult) {
       buffer.putUint8(132);
       writeValue(buffer, value.encode());
-    }    else if (value is FileEntryMessage) {
+    } else if (value is FileEntryMessage) {
       buffer.putUint8(133);
       writeValue(buffer, value.encode());
-    }    else if (value is CopyProgressMessage) {
+    } else if (value is CopyProgressMessage) {
       buffer.putUint8(134);
       writeValue(buffer, value.encode());
-    }    else if (value is PlayerStateMessage) {
+    } else if (value is PlayerStateMessage) {
       buffer.putUint8(135);
       writeValue(buffer, value.encode());
     } else {
@@ -635,18 +642,14 @@ class ReaderHostApi {
   /// Constructor for [ReaderHostApi]. The [binaryMessenger] named argument is
   /// available for dependency injection. If it is left null, the default
   /// BinaryMessenger will be used which routes to the host platform.
-  ReaderHostApi({
-      BinaryMessenger? binaryMessenger, 
-      String messageChannelSuffix = '', 
-      })
-      : pigeonVar_binaryMessenger = binaryMessenger,
-        pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
+  ReaderHostApi({BinaryMessenger? binaryMessenger, String messageChannelSuffix = ''})
+    : pigeonVar_binaryMessenger = binaryMessenger,
+      pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
 
   final BinaryMessenger? pigeonVar_binaryMessenger;
   static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
 
   final String pigeonVar_messageChannelSuffix;
-
 
   Future<List<UsbDeviceMessage>> listDevices() async {
     final pigeonVar_channelName = 'dev.flutter.pigeon.reader.ReaderHostApi.listDevices$pigeonVar_messageChannelSuffix';
@@ -659,16 +662,16 @@ class ReaderHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return (pigeonVar_replyValue! as List<Object?>).cast<UsbDeviceMessage>();
   }
 
   Future<bool> requestPermission(int deviceId) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.reader.ReaderHostApi.requestPermission$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.reader.ReaderHostApi.requestPermission$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -678,11 +681,10 @@ class ReaderHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as bool;
   }
 
@@ -697,11 +699,10 @@ class ReaderHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as DeviceOpenResult;
   }
 
@@ -715,12 +716,7 @@ class ReaderHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[deviceId]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<int> rootNodeId(int volumeHandle) async {
@@ -734,16 +730,16 @@ class ReaderHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as int;
   }
 
   Future<List<FileEntryMessage>> listDirectory(int volumeHandle, int nodeId) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.reader.ReaderHostApi.listDirectory$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.reader.ReaderHostApi.listDirectory$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -753,11 +749,10 @@ class ReaderHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return (pigeonVar_replyValue! as List<Object?>).cast<FileEntryMessage>();
   }
 
@@ -772,11 +767,10 @@ class ReaderHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as FileEntryMessage;
   }
 
@@ -787,15 +781,19 @@ class ReaderHostApi {
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[volumeHandle, nodeId, offset, length]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[
+      volumeHandle,
+      nodeId,
+      offset,
+      length,
+    ]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as Uint8List;
   }
 
@@ -810,16 +808,16 @@ class ReaderHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
     return pigeonVar_replyValue as Uint8List?;
   }
 
   Future<String> exportToPreviewCache(int volumeHandle, int nodeId) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.reader.ReaderHostApi.exportToPreviewCache$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.reader.ReaderHostApi.exportToPreviewCache$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -829,16 +827,16 @@ class ReaderHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as String;
   }
 
   Future<String?> savedDestinationName() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.reader.ReaderHostApi.savedDestinationName$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.reader.ReaderHostApi.savedDestinationName$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -848,16 +846,16 @@ class ReaderHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
     return pigeonVar_replyValue as String?;
   }
 
   Future<String?> pickDestination() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.reader.ReaderHostApi.pickDestination$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.reader.ReaderHostApi.pickDestination$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -867,11 +865,10 @@ class ReaderHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
     return pigeonVar_replyValue as String?;
   }
 
@@ -886,11 +883,10 @@ class ReaderHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as int;
   }
 
@@ -904,12 +900,7 @@ class ReaderHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[jobId]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<int> createPlayer(int volumeHandle, int nodeId) async {
@@ -923,11 +914,10 @@ class ReaderHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as int;
   }
 
@@ -941,12 +931,7 @@ class ReaderHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[playerId]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> playerPause(int playerId) async {
@@ -959,12 +944,7 @@ class ReaderHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[playerId]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> playerSeekTo(int playerId, int positionMillis) async {
@@ -977,16 +957,12 @@ class ReaderHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[playerId, positionMillis]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> disposePlayer(int playerId) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.reader.ReaderHostApi.disposePlayer$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.reader.ReaderHostApi.disposePlayer$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -995,12 +971,7 @@ class ReaderHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[playerId]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 }
 
@@ -1015,16 +986,14 @@ abstract class ReaderEventsApi {
 
   void onPlayerState(PlayerStateMessage state);
 
-  static void setUp(ReaderEventsApi? api, {
-    BinaryMessenger? binaryMessenger, 
-    String messageChannelSuffix = '',
-  }) 
-{
+  static void setUp(ReaderEventsApi? api, {BinaryMessenger? binaryMessenger, String messageChannelSuffix = ''}) {
     messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.reader.ReaderEventsApi.onDeviceAttached$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.reader.ReaderEventsApi.onDeviceAttached$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -1036,16 +1005,20 @@ abstract class ReaderEventsApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.reader.ReaderEventsApi.onDeviceDetached$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.reader.ReaderEventsApi.onDeviceDetached$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -1057,16 +1030,20 @@ abstract class ReaderEventsApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.reader.ReaderEventsApi.onCopyProgress$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.reader.ReaderEventsApi.onCopyProgress$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -1078,16 +1055,20 @@ abstract class ReaderEventsApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.reader.ReaderEventsApi.onPlayerState$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.reader.ReaderEventsApi.onPlayerState$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -1099,8 +1080,10 @@ abstract class ReaderEventsApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
